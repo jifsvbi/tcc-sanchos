@@ -8,8 +8,7 @@ const ADMIN = {
   id: 1,
   nome: "Admin SENAI",
   email: "admin@senai.br",
-  // Hash de "admin123"
-  senhaHash: "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LPVyc5mzVj2",
+  senhaHash: bcrypt.hashSync("admin123", 10),
 };
 
 async function login(req, res) {

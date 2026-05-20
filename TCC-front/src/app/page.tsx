@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Eye, EyeOff, Shield, Wifi, Camera } from "lucide-react";
+import api from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -12,18 +13,24 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  function handleLogin(e: React.FormEvent) {
+  async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    setLoading(true);
-    setTimeout(() => {
-      if (email && senha) {
-        router.push("/dashboard");
-      } else {
-        setError("Preencha todos os campos.");
-        setLoading(false);
-      }
-    }, 900);
+
+    if (!email || !senha) {
+      setError("Preencha todos os campos.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await api.auth.login(email, senha);
+      router.push("/dashboard");
+    } catch (err: any) {
+      setError(err?.message || "Não foi possível efetuar login.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (

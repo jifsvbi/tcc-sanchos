@@ -1,69 +1,144 @@
-"use client";
+﻿"use client";
 
-import { useState } from "react";
-import { Plus, Search, Users, BookOpen, GraduationCap, Eye, Pencil, Trash2, ChevronRight } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Plus, Search, Users, BookOpen, GraduationCap, Eye, Pencil, Trash2 } from "lucide-react";
+import api from "@/lib/api";
 
 interface Turma {
   id: number;
-  codigo: string;
   nome: string;
-  curso: string;
-  periodo: string;
-  alunos: number;
-  capacidade: number;
-  professor: string;
-  status: "Ativa" | "Inativa";
+  total_alunos: number;
+  professores: string | null;
 }
 
-const turmas: Turma[] = [
-  { id: 1, codigo: "IDEV5", nome: "Desenvolvimento de Sistemas 5", curso: "Técnico em Desenvolvimento de Sistemas", periodo: "Manhã", alunos: 32, capacidade: 32, professor: "Prof. João Marcos", status: "Ativa" },
-  { id: 2, codigo: "IDEV5", nome: "Desenvolvimento de Sistemas 5", curso: "Técnico em Desenvolvimento de Sistemas", periodo: "Tarde", alunos: 32, capacidade: 32, professor: "Prof. João Marcos", status: "Ativa" },
-
-  { id: 3, codigo: "IMEC5", nome: "Mecânica 5", curso: "Técnico em Mecânica", periodo: "Manhã", alunos: 16, capacidade: 16, professor: "Profa. Carla Andrade", status: "Ativa" },
-  { id: 4, codigo: "IMEC5", nome: "Mecânica 5", curso: "Técnico em Mecânica", periodo: "Tarde", alunos: 16, capacidade: 16, professor: "Prof. Marcos Vinicius", status: "Ativa" },
-
-  { id: 5, codigo: "IELE4", nome: "Eletrônica 4", curso: "Técnico em Eletrônica", periodo: "Manhã", alunos: 16, capacidade: 16, professor: "Profa. Carla Andrade", status: "Ativa" },
-
-  { id: 6, codigo: "IDEV4", nome: "Desenvolvimento de Sistemas 4", curso: "Técnico em Desenvolvimento de Sistemas", periodo: "Manhã", alunos: 32, capacidade: 32, professor: "Profa. Fernanda Lima", status: "Ativa" },
-  { id: 7, codigo: "IDEV4", nome: "Desenvolvimento de Sistemas 4", curso: "Técnico em Desenvolvimento de Sistemas", periodo: "Tarde", alunos: 32, capacidade: 32, professor: "Prof. Ricardo Souza", status: "Ativa" },
-
-  { id: 8, codigo: "IDEV3", nome: "Desenvolvimento de Sistemas 3", curso: "Técnico em Desenvolvimento de Sistemas", periodo: "Manhã", alunos: 30, capacidade: 32, professor: "Prof. Ricardo Souza", status: "Ativa" },
-  { id: 9, codigo: "IDEV3", nome: "Desenvolvimento de Sistemas 3", curso: "Técnico em Desenvolvimento de Sistemas", periodo: "Tarde", alunos: 25, capacidade: 32, professor: "Profa. Fernanda Lima", status: "Ativa" },
-
-  { id: 10, codigo: "IELE3", nome: "Eletrônica 3", curso: "Técnico em Eletrônica", periodo: "Manhã", alunos: 0, capacidade: 16, professor: "—", status: "Inativa" }
-];
 export default function TurmasPage() {
   const [busca, setBusca] = useState("");
-  const [filtroStatus, setFiltroStatus] = useState("Todas");
+  const [turmas, setTurmas] = useState<Turma[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [modalAberto, setModalAberto] = useState(false);
+  const [modoEdicao, setModoEdicao] = useState(false);
+  const [turmaEmEdicao, setTurmaEmEdicao] = useState<number | null>(null);
+  const [novoNome, setNovoNome] = useState("");
+  const [saving, setSaving] = useState(false);
 
-  const filtradas = turmas.filter((t) => {
-    const matchBusca = t.codigo.toLowerCase().includes(busca.toLowerCase()) || t.nome.toLowerCase().includes(busca.toLowerCase()) || t.curso.toLowerCase().includes(busca.toLowerCase());
-    const matchStatus = filtroStatus === "Todas" || t.status === filtroStatus;
-    return matchBusca && matchStatus;
-  });
+  useEffect(() => {
+    fetchTurmas();
+  }, []);
 
-  const totalAlunos = turmas.filter(t => t.status === "Ativa").reduce((sum, t) => sum + t.alunos, 0);
-  const turmasAtivas = turmas.filter(t => t.status === "Ativa").length;
+  async function fetchTurmas() {
+    try {
+      setLoading(true);
+      setError("");
+      const response = await api.turmas.listar();
+      setTurmas(response.data);
+    } catch (err: any) {
+      setError(err?.message || "Erro ao carregar turmas.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleCriarTurma(e: React.FormEvent) {
+    e.preventDefault();
+    if (!novoNome.trim()) return;
+
+    try {
+      setSaving(true);
+      if (modoEdicao && turmaEmEdicao) {
+        await api.turmas.atualizar(turmaEmEdicao, novoNome.trim());
+      } else {
+        await api.turmas.criar(novoNome.trim());
+      }
+      setNovoNome("");
+      setModalAberto(false);
+      setModoEdicao(false);
+      setTurmaEmEdicao(null);
+      await fetchTurmas();
+    } catch (err: any) {
+      setError(err?.message || "Não foi possível salvar a turma.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleEditarTurma(turma: Turma) {
+    setModoEdicao(true);
+    setTurmaEmEdicao(turma.id);
+    setNovoNome(turma.nome);
+    setModalAberto(true);
+  }
+
+  async function handleDeletarTurma(id: number) {
+    if (!confirm("Tem certeza que deseja excluir esta turma?")) return;
+
+    try {
+      setSaving(true);
+      await api.turmas.remover(id);
+      await fetchTurmas();
+    } catch (err: any) {
+      setError(err?.message || "Não foi possível deletar a turma.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function abrirModalCriar() {
+    setModoEdicao(false);
+    setTurmaEmEdicao(null);
+    setNovoNome("");
+    setModalAberto(true);
+  }
+
+  function fecharModal() {
+    setModalAberto(false);
+    setModoEdicao(false);
+    setTurmaEmEdicao(null);
+    setNovoNome("");
+  }
+
+  const filtradas = useMemo(() => {
+    const termo = busca.trim().toLowerCase();
+    return turmas.filter((turma) => {
+      if (!termo) return true;
+      return (
+        turma.nome.toLowerCase().includes(termo) ||
+        (turma.professores || "").toLowerCase().includes(termo)
+      );
+    });
+  }, [busca, turmas]);
+
+  const totalAlunos = turmas.reduce((sum, turma) => sum + Number(turma.total_alunos ?? 0), 0);
+  const totalTurmas = turmas.length;
+  const totalProfessores = turmas.filter((turma) => !!turma.professores).length;
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Turmas</h1>
-          <p className="text-sm text-gray-500 mt-1">{turmasAtivas} turmas ativas · {totalAlunos} alunos matriculados</p>
+          <p className="text-sm text-gray-500 mt-1">{totalTurmas} turmas cadastradas · {totalAlunos} alunos matriculados</p>
         </div>
-        <button className="flex items-center gap-2 bg-[#c8102e] hover:bg-[#a00d24] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+        <button
+          onClick={() => abrirModalCriar()}
+          className="flex items-center gap-2 bg-[#c8102e] hover:bg-[#a00d24] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+        >
           <Plus className="w-4 h-4" />
           Nova Turma
         </button>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
+      {error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {[
-          { label: "Turmas Ativas", value: turmasAtivas, icon: BookOpen, color: "text-[#c8102e]", bg: "bg-red-50" },
+          { label: "Turmas Cadastradas", value: totalTurmas, icon: BookOpen, color: "text-[#c8102e]", bg: "bg-red-50" },
           { label: "Total de Alunos", value: totalAlunos, icon: Users, color: "text-blue-600", bg: "bg-blue-50" },
-          { label: "Cursos Técnicos", value: 2, icon: GraduationCap, color: "text-green-600", bg: "bg-green-50" },
+          { label: "Com professor", value: totalProfessores, icon: GraduationCap, color: "text-green-600", bg: "bg-green-50" },
         ].map((s) => (
           <div key={s.label} className={`${s.bg} rounded-xl p-4 flex items-center gap-3`}>
             <s.icon className={`w-8 h-8 ${s.color}`} />
@@ -75,84 +150,84 @@ export default function TurmasPage() {
         ))}
       </div>
 
-      {/* Filtros */}
-      <div className="flex gap-3">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
         <div className="flex-1 relative">
           <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Buscar turma ou curso..."
+            placeholder="Buscar por turma ou professor..."
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#c8102e] bg-white"
           />
         </div>
-        <div className="flex gap-2">
-          {["Todas", "Ativa", "Inativa"].map((f) => (
-            <button
-              key={f}
-              onClick={() => setFiltroStatus(f)}
-              className={`text-sm px-4 py-2 rounded-lg font-medium transition-colors ${filtroStatus === f ? "bg-[#c8102e] text-white" : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"}`}
-            >
-              {f}
-            </button>
-          ))}
-        </div>
       </div>
 
-      {/* Cards de Turmas */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {filtradas.map((turma) => {
-          const ocupacao = Math.round((turma.alunos / turma.capacidade) * 100);
-          return (
+      {loading ? (
+        <div className="rounded-xl border border-gray-200 bg-white p-6 text-center text-sm text-gray-500">Carregando turmas...</div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {filtradas.map((turma) => (
             <div key={turma.id} className="bg-white border border-gray-200 rounded-xl p-5 hover:border-[#c8102e]/30 hover:shadow-sm transition-all">
-              <div className="flex items-start justify-between mb-3">
+              <div className="flex items-start justify-between mb-4">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-lg font-bold text-gray-900">{turma.codigo}</span>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${turma.status === "Ativa" ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"}`}>
-                      {turma.status}
-                    </span>
+                    <span className="text-lg font-bold text-gray-900">{turma.nome}</span>
                   </div>
-                  <p className="text-sm text-gray-500 line-clamp-1">{turma.curso}</p>
+                  <p className="text-sm text-gray-500 line-clamp-2">{turma.professores || "Sem professor vinculado"}</p>
                 </div>
                 <div className="flex gap-1">
                   <button className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"><Eye className="w-4 h-4" /></button>
-                  <button className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-blue-600 transition-colors"><Pencil className="w-4 h-4" /></button>
-                  <button className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-red-600 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                  <button onClick={() => handleEditarTurma(turma)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-blue-600 transition-colors"><Pencil className="w-4 h-4" /></button>
+                  <button onClick={() => handleDeletarTurma(turma.id)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-red-600 transition-colors"><Trash2 className="w-4 h-4" /></button>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 mb-3">
-                <div className="text-xs text-gray-500">
-                  <span className="font-medium text-gray-700">Período:</span> {turma.periodo}
-                </div>
-                <div className="text-xs text-gray-500">
-                  <span className="font-medium text-gray-700">Professor:</span> {turma.professor}
-                </div>
-              </div>
-
-              <div>
-                <div className="flex justify-between text-xs text-gray-500 mb-1">
-                  <span>{turma.alunos} alunos</span>
-                  <span>{ocupacao}% de {turma.capacidade}</span>
-                </div>
-                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all ${ocupacao >= 90 ? "bg-red-500" : ocupacao >= 70 ? "bg-yellow-500" : "bg-green-500"}`}
-                    style={{ width: `${ocupacao}%` }}
-                  />
+              <div className="text-sm text-gray-600 mb-3">
+                <div className="mb-2">
+                  <span className="font-semibold">Alunos:</span> {turma.total_alunos}
                 </div>
               </div>
             </div>
-          );
-        })}
-      </div>
+          ))}
 
-      {filtradas.length === 0 && (
-        <div className="text-center py-12 text-gray-400">
-          <BookOpen className="w-12 h-12 mx-auto mb-3 opacity-30" />
-          <p>Nenhuma turma encontrada</p>
+          {filtradas.length === 0 && (
+            <div className="col-span-full rounded-xl border border-gray-200 bg-white p-10 text-center text-gray-500">
+              Nenhuma turma encontrada.
+            </div>
+          )}
+        </div>
+      )}
+
+      {modalAberto && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">{modoEdicao ? "Editar Turma" : "Nova Turma"}</h2>
+                <p className="text-sm text-gray-500">{modoEdicao ? "Altere o nome da turma." : "Informe o nome da turma para cadastrar."}</p>
+              </div>
+              <button onClick={() => fecharModal()} className="text-gray-400 hover:text-gray-700">Fechar</button>
+            </div>
+            <form onSubmit={handleCriarTurma} className="space-y-4">
+              <label className="block text-sm font-medium text-gray-700">Nome da turma</label>
+              <input
+                value={novoNome}
+                onChange={(e) => setNovoNome(e.target.value)}
+                placeholder="Ex: Desenvolvimento de Sistemas 5"
+                className="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm focus:outline-none focus:border-[#c8102e]"
+                required
+              />
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => fecharModal()} className="rounded-2xl border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50">
+                  Cancelar
+                </button>
+                <button type="submit" disabled={saving} className="rounded-2xl bg-[#c8102e] px-4 py-2 text-sm font-semibold text-white hover:bg-[#a00d24] disabled:opacity-60">
+                  {saving ? "Salvando..." : modoEdicao ? "Atualizar" : "Cadastrar"}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>
